@@ -1,6 +1,6 @@
 from skyfield.api import EarthSatellite, load, wgs84
 import datetime
-from numpy import sin, cos, arccos, linspace, pi, reshape, ones, zeros, stack, transpose, arctan, sqrt, array
+from numpy import sin, cos, arccos, linspace, pi, zeros, stack, transpose, arctan, sqrt, array
 from numpy.linalg import norm
 from geopy.distance import geodesic
 from ..units import Angle, Distance
@@ -19,6 +19,7 @@ class Satellite:
         self.coverage_area = []
         self.power = power
         self.gain = gain
+        self.communication_possible = False
 
 
     def at(self, time: datetime):
@@ -28,15 +29,15 @@ class Satellite:
         self.r = geocentric.distance()
         sub_lat, _ = wgs84.latlon_of(geocentric)
         (ra, _, _) = geocentric.radec()
-        sub_lon = Angle(radians=(ra.radians - self.right_ascension_of_greenwich_meridian(time).radians))
+        sub_lon = Angle(radians=(ra.radians - self.__right_ascension_of_greenwich_meridian(time).radians))
         
         self.sub_pos = wgs84.latlon(sub_lat.degrees, sub_lon.degrees)
         h = wgs84.height_of(geocentric).km
-        self.coverage_area = self._coverage_area(h, sub_lat, sub_lon, 100)
+        self.coverage_area = self.__coverage_area(h, sub_lat, sub_lon, 100)
 
 
     # Satellite Orbits Models, Methods and Applications (Dr. Oliver Montenbruck), p. 33
-    def right_ascension_of_greenwich_meridian(self, t: datetime):
+    def __right_ascension_of_greenwich_meridian(self, t: datetime):
         J2000 = datetime.datetime(2000, 1, 2, 12, tzinfo=datetime.UTC)
 
         timedelta_since_epoch: datetime.timedelta = t - J2000
@@ -47,7 +48,7 @@ class Satellite:
         return Angle(degrees=degs)
 
 
-    def _coverage_area(self, h, lat, lon, m):
+    def __coverage_area(self, h, lat, lon, m):
         # Угол видимости с учетом минимального угла места
         azimuths = linspace(0, 360, m)
         eps = 0
@@ -70,7 +71,7 @@ class Satellite:
     
 
     def altaz(self, latitude: Angle, longitude: Angle, time: datetime):
-        THETA = self.right_ascension_of_greenwich_meridian(time).radians
+        THETA = self.__right_ascension_of_greenwich_meridian(time).radians
 
         Rz = zeros((3, 3))
         Rz[0][0] = cos(THETA)

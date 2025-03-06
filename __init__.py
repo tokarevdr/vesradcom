@@ -1,7 +1,9 @@
-from . import antenna
-from . import satellite
-from . import vessel
 from . import simulation
+from .simulation import *
+
+from . import entities
 from . import units
 
-__all__ = ['antenna', 'satellite', 'vessel', 'simulation', 'units']
+__all__: list[str] = []
+__all__.extend(simulation.__all__.copy())
+__all__.extend(['entities', 'units'])

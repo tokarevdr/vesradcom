@@ -2,8 +2,8 @@ from skyfield.api import wgs84
 from skyfield.toposlib import GeographicPosition
 from datetime import datetime
 
-from ..satellite import Satellite
-from ..antenna import LinearAntenna
+from . import Satellite
+from . import LinearAntenna
 from ..units import Angle
 
 

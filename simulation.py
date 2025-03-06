@@ -2,9 +2,8 @@ from typing import Optional
 from datetime import datetime
 from shapely import Polygon
 
-from ..vessel import Vessel
-from ..satellite import Satellite
-from ..units import Angle, Velocity
+from .entities import Vessel, Satellite
+from .units import Angle, Velocity
 
 __all__ = ['Simulation']
 

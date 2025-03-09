@@ -48,12 +48,30 @@ class Satellite:
         geocentric = self.__skyfield_sat.at(t)
         self.__position = geocentric
         self.__distance = geocentric.distance()
-        sub_lat, _ = wgs84.latlon_of(geocentric)
-        (ra, _, _) = geocentric.radec()
-        sub_lon = Angle(radians=(ra.radians - self.__right_ascension_of_greenwich_meridian(time).radians))
+        sub_lat, sub_lon = self.__subpoint_latlon(geocentric, time)
         
         self.__subpoint_position = wgs84.latlon(sub_lat.degrees, sub_lon.degrees)
         self.__coverage_area = self.__visible_area()
+
+
+    def track(self, start_time: datetime, end_time: datetime, point_count: int) -> tuple[list[float], list[float]]:
+        lats = []
+        lons = []
+        time = start_time
+        dt = (end_time - start_time) / point_count
+
+        while time < end_time:
+            t = self.__ts.from_datetime(time)
+            geocentric = self.__skyfield_sat.at(t)
+            sub_lat, sub_lon = self.__subpoint_latlon(geocentric, time)
+            lats.append(sub_lat.degrees)
+            lons.append(sub_lon.degrees)
+            time += dt
+
+        lats.append(None)
+        lons.append(None)
+
+        return (lons, lats)
 
 
     def position(self) -> Geocentric:
@@ -151,6 +169,14 @@ class Satellite:
             boundaries.append((point.longitude, point.latitude))
 
         return Polygon(boundaries)
+    
+
+    def __subpoint_latlon(self, geocentric: Geocentric, time: datetime) -> tuple[Angle, Angle]:
+        sub_lat, _ = wgs84.latlon_of(geocentric)
+        (ra, _, _) = geocentric.radec()
+        sub_lon = Angle(radians=(ra.radians - self.__right_ascension_of_greenwich_meridian(time).radians))
+
+        return (sub_lat, sub_lon)
     
 
     def altaz(self, latitude: Angle, longitude: Angle, time: datetime) -> tuple[Angle, Angle, Distance]:

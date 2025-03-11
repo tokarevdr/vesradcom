@@ -143,9 +143,8 @@ class Simulation:
         az = satellite.azimuth()
         dist = satellite.distance()
 
-        az_diff = Angle(radians=(az.radians - self.__antenna.azimuth().radians))
-        alt_diff = Angle(radians=(alt.radians - self.__antenna.altitude().radians))
-        detectable = self.__antenna.is_input_detectable(satellite.power().w, satellite.gain(), az_diff, alt_diff, dist)
+        az_diff = Angle(radians=(az.radians - self.__vessel.course().radians))
+        detectable = self.__antenna.is_input_detectable(satellite.power().w, satellite.gain(), az_diff, alt, dist)
 
         return detectable
     

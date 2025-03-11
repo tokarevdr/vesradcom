@@ -10,40 +10,22 @@ __all__ = ['Antenna', 'FiniteLengthDipole']
 class Antenna(abc.ABC):
     _frequency: Frequency
     _wavelength: float
-    _altitude: Angle
-    _azimuth: Angle
-    _minimal_detectable_power: Power
+    _min_detectable_power: Power
+    _max_power: Power
     _power: Power
 
-    def __init__(self, frequency: Frequency, altitude: Angle, azimuth: Angle, 
-                 minimal_detectable_power: Power, power: Power):
+    def __init__(self, frequency: Frequency, min_detectable_power: Power,
+                 max_power: Power, power: Power):
         self._frequency = frequency
-        self._altitude = altitude
-        self._azimuth = azimuth
         self._wavelength = c / frequency.hz
-        self._minimal_detectable_power = minimal_detectable_power
+        self._min_detectable_power = min_detectable_power
+        self._max_power = max_power
         self._power = power
     
 
     @abc.abstractmethod
     def gain(self, theta: float, phi: float) -> float:
         pass
-
-
-    def set_altitude(self, new_altitude: Angle):
-        self._altitude = new_altitude
-
-
-    def altitude(self) -> Angle:
-        return self._altitude
-    
-
-    def set_azimuth(self, new_azimuth: Angle):
-        self._azimuth = new_azimuth
-
-
-    def azimuth(self) -> Angle:
-        return self._azimuth
     
 
     def set_power(self, new_power: Power):
@@ -60,9 +42,9 @@ class Antenna(abc.ABC):
 
         print('gain:', g_r)
         print('power:', p_r)
-        print('min power:', self._minimal_detectable_power.w)
+        print('min power:', self._min_detectable_power.w)
 
-        return p_r >= self._minimal_detectable_power.w
+        return p_r >= self._min_detectable_power.w
     
 
     def __received_power(self, p_t: float, g_t: float, g_r: float, d: float):
@@ -91,10 +73,9 @@ class Antenna(abc.ABC):
 
 
 class SmallDipole(Antenna):
-    def __init__(self, frequency: Frequency, altitude: Angle, azimuth: Angle, 
-                 minimal_detectable_power: Power, power: Power):
-        super().__init__(frequency, altitude, azimuth,
-                         minimal_detectable_power, power)
+    def __init__(self, frequency: Frequency, min_detectable_power: Power,
+                 max_power: Power, power: Power):
+        super().__init__(frequency, min_detectable_power, max_power, power)
     
 
     def gain(self, theta: float, phi: float):
@@ -102,10 +83,9 @@ class SmallDipole(Antenna):
         
 
 class FiniteLengthDipole(Antenna):
-    def __init__(self, frequency: Frequency, altitude: Angle, azimuth: Angle, 
-                 minimal_detectable_power: Power, power: Power):
-        super().__init__(frequency, altitude, azimuth,
-                         minimal_detectable_power, power)
+    def __init__(self, frequency: Frequency, min_detectable_power: Power,
+                 max_power: Power, power: Power):
+        super().__init__(frequency, min_detectable_power, max_power, power)
     
 
     def gain(self, theta: float, phi: float):

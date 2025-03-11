@@ -44,10 +44,6 @@ class Antenna(abc.ABC):
         g_r = self.gain(elevation.radians, azimuth.radians)
         p_r = self.__received_power(p_t, g_t, g_r, distance.m)
 
-        print('gain:', g_r)
-        print('power:', p_r)
-        print('min power:', self._min_detectable_power.w)
-
         return p_r >= self._min_detectable_power.w
     
 

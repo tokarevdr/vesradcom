@@ -1,7 +1,8 @@
 from typing import Optional
 from datetime import datetime, timedelta
-from shapely import Polygon, Point
-from skyfield.toposlib import GeographicPosition
+from shapely import Polygon, Point, reverse
+from shapely.ops import transform
+import pyproj
 from geopy.distance import geodesic
 import math
 import numpy as np
@@ -146,7 +147,7 @@ class Simulation:
                 sat = self.satellite_at(sat_num)
                 sat.at(time)
 
-                points = self.__available_points(sat.coverage_area())
+                points, intersection = self.__available_points(sat.coverage_area())
 
                 for point in points:
                     start_point = (self.__vessel.position().latitude.degrees, self.__vessel.position().longitude.degrees)
@@ -181,6 +182,7 @@ class Simulation:
 
                             if detectable:
                                 result.course = Angle(degrees=course)
+                                result.intersection = intersection
                                 results.append(result)
 
             time += dt
@@ -189,12 +191,25 @@ class Simulation:
 
 
     def __available_points(self, coverage_area: Polygon):
-        intersection = coverage_area.intersection(self.__area)
+        wgs84 = pyproj.CRS('EPSG:4326')
+        utm = pyproj.CRS('EPSG:25832')
 
-        if intersection.is_empty:
-            return []
+        project = pyproj.Transformer.from_crs(wgs84, utm, always_xy=True).transform
+        inv_project = pyproj.Transformer.from_crs(utm, wgs84, always_xy=True).transform
 
-        lonmin, latmin, lonmax, latmax = intersection.bounds
+        polygon1 = transform(project, coverage_area)
+        polygon2 = transform(project, self.__area)
+
+        polygon3 = polygon1.intersection(polygon2)
+
+        # intersect = coverage_area.intersection(self.__area)
+
+        intersect = transform(inv_project, polygon3)
+
+        if not intersect:
+            return ([], Polygon())
+
+        lonmin, latmin, lonmax, latmax = intersect.bounds
 
         dlon = 0.5
         dlat = 0.5
@@ -202,7 +217,7 @@ class Simulation:
 
         points = zip(X.flatten(), Y.flatten())
 
-        return [i for i in points if intersection.contains(Point(i[0], i[1]))]
+        return ([i for i in points if intersect.contains(Point(i[0], i[1]))], intersect)
     
 
     def __is_satellite_visible(self, satellite: Satellite) -> bool:
@@ -257,6 +272,7 @@ class BruteforceResult:
     point: tuple[Angle, Angle]
     velocity: Velocity
     course: Angle
+    intersection: Polygon
 
     def __init__(self):
         self.time = 0

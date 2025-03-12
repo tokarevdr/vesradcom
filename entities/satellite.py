@@ -154,7 +154,7 @@ class Satellite:
         # Угол видимости с учетом минимального угла места
         lat = self.__subpoint_position.latitude.degrees
         lon = self.__subpoint_position.longitude.degrees
-        azimuths = linspace(0, 360, 100)
+        azimuths = linspace(360, 0, 200, endpoint=False)
         eps = 0
         R = wgs84.radius.km
         h = wgs84.height_of(self.__position).km

@@ -1,10 +1,11 @@
 from typing import Optional
-from datetime import datetime, timedelta
-from shapely import Polygon, Point, reverse
+from datetime import datetime, timedelta, UTC
+from shapely import Polygon, Point
 from shapely.ops import transform
 import pyproj
 from geopy.distance import geodesic
 import math
+from copy import copy
 import numpy as np
 
 from .entities import Landmark, Station, Antenna, Vessel, Satellite
@@ -23,7 +24,7 @@ class Simulation:
     __satellites: list[Satellite]
 
     def __init__(self, area: Optional[Polygon] = None, antenna: Optional[Antenna] = None, vessel: Optional[Vessel] = None):
-        self.__current_datetime = datetime(2000, 1, 1)
+        self.__current_datetime = datetime(2000, 1, 1, tzinfo=UTC)
         self.__area = Polygon(area)
         self.__antenna = antenna
         self.__vessel = vessel
@@ -113,7 +114,7 @@ class Simulation:
     def update(self):
         for satellite in self.__satellites:
             satellite.at(self.__current_datetime)
-            alt, az, dist = satellite.altaz(self.__vessel.position().latitude, self.__vessel.position().longitude, self.__current_datetime)
+            alt, az, dist = satellite.altaz(self.__vessel.position(), self.__current_datetime)
             satellite.set_altitude(alt)
             satellite.set_azimuth(az)
             satellite.set_distance(dist)
@@ -144,7 +145,7 @@ class Simulation:
 
         while time < end_time:
             for sat_num in range(self.satellite_count()):
-                sat = self.satellite_at(sat_num)
+                sat = copy(self.satellite_at(sat_num))
                 sat.at(time)
 
                 points, intersection = self.__available_points(sat.coverage_area())
@@ -191,20 +192,20 @@ class Simulation:
 
 
     def __available_points(self, coverage_area: Polygon):
-        wgs84 = pyproj.CRS('EPSG:4326')
-        utm = pyproj.CRS('EPSG:25832')
+        wgs84 = 'EPSG:4326'
+        mollweide = 'ESRI:54030'
 
-        project = pyproj.Transformer.from_crs(wgs84, utm, always_xy=True).transform
-        inv_project = pyproj.Transformer.from_crs(utm, wgs84, always_xy=True).transform
+        transformer_to_mollweide = pyproj.Transformer.from_crs(wgs84, mollweide, always_xy=True)
+        transformer_to_wgs84 = pyproj.Transformer.from_crs(mollweide, wgs84, always_xy=True)
 
-        polygon1 = transform(project, coverage_area)
-        polygon2 = transform(project, self.__area)
+        polygon1 = transform(transformer_to_mollweide.transform, coverage_area)
+        polygon2 = transform(transformer_to_mollweide.transform, self.__area)
 
-        polygon3 = polygon1.intersection(polygon2)
+        polygon3 = polygon1.intersection(polygon2, 0.1)
 
         # intersect = coverage_area.intersection(self.__area)
 
-        intersect = transform(inv_project, polygon3)
+        intersect = transform(transformer_to_wgs84.transform, polygon3)
 
         if not intersect:
             return ([], Polygon())
@@ -291,14 +292,14 @@ class BruteforceResult:
     
 
 def from_bruteforce_result(original_simulation: Simulation, result: BruteforceResult) -> Simulation:
-    antenna = original_simulation.antenna()
-    vessel = original_simulation.vessel()
+    antenna = copy(original_simulation.antenna())
+    vessel = copy(original_simulation.vessel())
     vessel.set_position(Angle(degrees=result.point[1]), Angle(degrees=result.point[0]))
     vessel.set_course(result.course)
     vessel.set_velocity(result.velocity)
-    sat = original_simulation.satellite_at(result.sat_num)
+    sat = copy(original_simulation.satellite_at(result.sat_num))
     
-    sim = Simulation(area = original_simulation.area(), antenna=antenna, vessel=vessel)
+    sim = Simulation(area = copy(original_simulation.area()), antenna=antenna, vessel=vessel)
     sim.append_satellite(sat)
     sim.set_current_datetime(result.time)
     sim.update()

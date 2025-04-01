@@ -9,7 +9,7 @@ from copy import copy
 import numpy as np
 
 from .entities import Landmark, Station, Antenna, Vessel, Satellite
-from .units import Angle, Velocity, Distance
+from .units import Angle, Velocity, Distance, Power
 
 __all__ = ['Simulation', 'from_bruteforce_result']
 
@@ -53,6 +53,10 @@ class Simulation:
     def set_vessel_position(self, latitude: Angle, longitude: Angle):
         if (self.__vessel != None):
             self.__vessel.set_position(latitude, longitude)
+
+
+    def set_antenna_power(self, power: Power):
+        self.__antenna.set_power(power)
 
 
     def set_current_datetime(self, new_datetime: datetime):
@@ -138,8 +142,8 @@ class Simulation:
     def bruteforce(self, start_time: datetime, end_time: datetime):
         results: list[BruteforceResult] = []
         dt = timedelta(minutes=5)
-        dcourse = Angle(degrees=5)
-        courses = np.arange(self.__vessel.course().degrees, self.__vessel.course().degrees + 360, dcourse.degrees) % 360
+        dcourse = Angle(degrees=1)
+        courses = np.arange(0, 360, dcourse.degrees)
 
         time = start_time
 
@@ -178,7 +182,6 @@ class Simulation:
                             result.point = point
                             result.velocity = velocity
 
-                            #visible = self.__is_satellite_visible(sat)
                             detectable = self.__is_satellite_detectable(sat, Angle(degrees=course))
 
                             if detectable:
@@ -189,7 +192,7 @@ class Simulation:
             time += dt
 
         return results
-
+    
 
     def __available_points(self, coverage_area: Polygon):
         wgs84 = 'EPSG:4326'
@@ -201,7 +204,7 @@ class Simulation:
         polygon1 = transform(transformer_to_mollweide.transform, coverage_area)
         polygon2 = transform(transformer_to_mollweide.transform, self.__area)
 
-        polygon3 = polygon1.intersection(polygon2, 0.1)
+        polygon3 = polygon1.intersection(polygon2)
 
         # intersect = coverage_area.intersection(self.__area)
 
@@ -232,7 +235,7 @@ class Simulation:
         az = satellite.azimuth()
         dist = satellite.distance()
 
-        az_diff = Angle(degrees=((az.degrees + 180 - course.degrees) % 360))
+        az_diff = Angle(degrees=((az.degrees - course.degrees) % 360))
         detectable = self.__antenna.is_input_detectable(satellite.power().w, satellite.gain(), az_diff, alt, dist)
 
         return detectable
@@ -272,6 +275,7 @@ class BruteforceResult:
     sat_num: int
     point: tuple[Angle, Angle]
     velocity: Velocity
+    power: Power
     course: Angle
     intersection: Polygon
 
@@ -280,19 +284,21 @@ class BruteforceResult:
         self.sat_num = 0
         self.point = (Angle(degrees=0), Angle(degrees=0))
         self.velocity = Velocity(km_per_s=0)
+        self.power = Power(w=0)
         self.course = Angle(degrees=0)
 
     
     def __repr__(self):
-        return f'BruteforceResult({self.time}, {self.sat_num}, {self.point}, {self.velocity.km_per_s} km/s, {self.course})'
+        return f'BruteforceResult({self.time}, {self.sat_num}, {self.point}, {self.velocity.km_per_s} km/s, {self.power.w} W, {self.course})'
     
 
     def __str__(self):
-        return f'({self.time}, {self.sat_num}, {self.point}, {self.velocity.km_per_s} km/s, {self.course})'
+        return f'({self.time}, {self.sat_num}, {self.point}, {self.velocity.km_per_s} km/s, {self.power.w} W, {self.course})'
     
 
 def from_bruteforce_result(original_simulation: Simulation, result: BruteforceResult) -> Simulation:
     antenna = copy(original_simulation.antenna())
+    antenna.set_power(result.power)
     vessel = copy(original_simulation.vessel())
     vessel.set_position(Angle(degrees=result.point[1]), Angle(degrees=result.point[0]))
     vessel.set_course(result.course)

@@ -4,7 +4,7 @@ from scipy.constants import c
 
 from ..units import Angle, Distance, Power, Frequency
 
-__all__ = ['Antenna', 'FiniteLengthDipole']
+__all__ = ['Antenna', 'SmallDipole', 'FiniteLengthDipole']
 
 
 class Antenna(abc.ABC):
@@ -38,6 +38,10 @@ class Antenna(abc.ABC):
 
     def max_power(self) -> Power:
         return self._max_power
+    
+
+    def min_detectable_power(self) -> Power:
+        return self._min_detectable_power
 
 
     def is_input_detectable(self, p_t: float, g_t: float, azimuth: Angle, elevation: Angle, distance: Distance):

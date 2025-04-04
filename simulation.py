@@ -7,13 +7,40 @@ from geopy.distance import geodesic
 import math
 from copy import copy
 import numpy as np
+import random
 
 from .entities import Landmark, Station, Antenna, Vessel, Satellite
 from .units import Angle, Velocity, Distance, Power
 
-__all__ = ['Simulation', 'from_bruteforce_result']
+__all__ = ['Simulation', 'SimulationResult', 'from_simulation_result']
 
 
+class SimulationResult:
+    time: datetime
+    sat_num: int
+    point: tuple[Angle, Angle]
+    velocity: Velocity
+    power: Power
+    course: Angle
+    intersection: Polygon
+
+    def __init__(self):
+        self.time = 0
+        self.sat_num = 0
+        self.point = (Angle(degrees=0), Angle(degrees=0))
+        self.velocity = Velocity(km_per_s=0)
+        self.power = Power(w=0)
+        self.course = Angle(degrees=0)
+
+    
+    def __repr__(self):
+        return f'SimulationResult({self.time}, {self.sat_num}, {self.point}, {self.velocity.km_per_s} km/s, {self.power.w} W, {self.course})'
+    
+
+    def __str__(self):
+        return f'({self.time}, {self.sat_num}, {self.point}, {self.velocity.km_per_s} km/s, {self.power.w} W, {self.course})'
+    
+    
 class Simulation:
     __current_datetime: datetime
     __area: Optional[Polygon]
@@ -123,7 +150,7 @@ class Simulation:
             satellite.set_azimuth(az)
             satellite.set_distance(dist)
             satellite.set_visible(self.__is_satellite_visible(satellite))
-            satellite.set_detectable(self.__is_satellite_detectable(satellite, self.__vessel.course()))
+            satellite.set_detectable(self.received_power_from_satellite(satellite, self.__vessel.course()) >= self.antenna().min_detectable_power().w)
         
         for landmark in self.__landmarks:
             landmark.set_bearing(self.__landmark_bearing(landmark))
@@ -134,13 +161,45 @@ class Simulation:
             station.set_distance(self.__landmark_distance(station))
             station.set_detectable(self.__is_station_detectable(station))
 
+    
+    def random_result(self, start_time: datetime, end_time: datetime) -> SimulationResult:
+        result = SimulationResult()
+
+        result.time = start_time + random.random() * (end_time - start_time)
+        result.sat_num = random.randint(0, self.satellite_count() - 1)
+
+        sat = copy(self.satellite_at(result.sat_num))
+        sat.at(result.time)
+
+        points, _ = self.__available_points(sat.coverage_area())
+
+        for point in points:
+            start_point = (self.__vessel.position().latitude.degrees, self.__vessel.position().longitude.degrees)
+            end_point = (point[1], point[0])
+            distance = geodesic(start_point, end_point).km
+            time_diff = result.time - self.__current_datetime
+            total_secs = time_diff.total_seconds()
+
+            velocity = Velocity(km_per_s = (distance / total_secs))
+
+            if velocity.km_per_s > self.__vessel.max_velocity().km_per_s:
+                points.remove(point)
+
+        if not points:
+            return SimulationResult()
+        
+        result.point = random.choice(points)
+        result.course = Angle(degrees=(random.random() * 360))
+
+        return result
+
 
     def optimize(self, start_time: datetime, end_time: datetime) -> tuple[Angle, Velocity, Angle, Angle]:
         return (Angle(degrees=0), Velocity(km_per_s=0), Angle(degrees=0), Angle(degrees=0))
     
 
     def bruteforce(self, start_time: datetime, end_time: datetime):
-        results: list[BruteforceResult] = []
+        results: list[SimulationResult] = []
         dt = timedelta(minutes=5)
         dcourse = Angle(degrees=1)
         courses = np.arange(0, 360, dcourse.degrees)
@@ -176,13 +235,13 @@ class Simulation:
 
                     if velocity.km_per_s <= self.__vessel.max_velocity().km_per_s:
                         for course in courses:
-                            result = BruteforceResult()
+                            result = SimulationResult()
                             result.time = time
                             result.sat_num = sat_num
                             result.point = point
                             result.velocity = velocity
 
-                            detectable = self.__is_satellite_detectable(sat, Angle(degrees=course))
+                            detectable = self.received_power_from_satellite(sat, Angle(degrees=course))
 
                             if detectable:
                                 result.course = Angle(degrees=course)
@@ -230,15 +289,15 @@ class Simulation:
         return alt.degrees > 0
     
 
-    def __is_satellite_detectable(self, satellite: Satellite, course: Angle) -> bool:
+    def received_power_from_satellite(self, satellite: Satellite, course: Angle) -> bool:
         alt = satellite.altitude()
         az = satellite.azimuth()
         dist = satellite.distance()
 
         az_diff = Angle(degrees=((az.degrees - course.degrees) % 360))
-        detectable = self.__antenna.is_input_detectable(satellite.power().w, satellite.gain(), az_diff, alt, dist)
+        power = self.__antenna.received_power(satellite.power().w, satellite.gain(), az_diff, alt, dist)
 
-        return detectable
+        return power
     
 
     def __is_station_detectable(self, station: Station) -> bool:
@@ -270,37 +329,11 @@ class Simulation:
         return Distance(m = geodesic(ves_pos, landmark_pos).m)
     
 
-class BruteforceResult:
-    time: datetime
-    sat_num: int
-    point: tuple[Angle, Angle]
-    velocity: Velocity
-    power: Power
-    course: Angle
-    intersection: Polygon
-
-    def __init__(self):
-        self.time = 0
-        self.sat_num = 0
-        self.point = (Angle(degrees=0), Angle(degrees=0))
-        self.velocity = Velocity(km_per_s=0)
-        self.power = Power(w=0)
-        self.course = Angle(degrees=0)
-
-    
-    def __repr__(self):
-        return f'BruteforceResult({self.time}, {self.sat_num}, {self.point}, {self.velocity.km_per_s} km/s, {self.power.w} W, {self.course})'
-    
-
-    def __str__(self):
-        return f'({self.time}, {self.sat_num}, {self.point}, {self.velocity.km_per_s} km/s, {self.power.w} W, {self.course})'
-    
-
-def from_bruteforce_result(original_simulation: Simulation, result: BruteforceResult) -> Simulation:
+def from_simulation_result(original_simulation: Simulation, result: SimulationResult) -> Simulation:
     antenna = copy(original_simulation.antenna())
     antenna.set_power(result.power)
     vessel = copy(original_simulation.vessel())
-    vessel.set_position(Angle(degrees=result.point[1]), Angle(degrees=result.point[0]))
+    vessel.set_position(result.point[0], result.point[1])
     vessel.set_course(result.course)
     vessel.set_velocity(result.velocity)
     sat = copy(original_simulation.satellite_at(result.sat_num))

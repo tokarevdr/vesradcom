@@ -44,11 +44,11 @@ class Antenna(abc.ABC):
         return self._min_detectable_power
 
 
-    def is_input_detectable(self, p_t: float, g_t: float, azimuth: Angle, elevation: Angle, distance: Distance):
+    def received_power(self, p_t: float, g_t: float, azimuth: Angle, elevation: Angle, distance: Distance) -> float:
         g_r = self.gain(elevation.radians, azimuth.radians)
         p_r = self.__received_power(p_t, g_t, g_r, distance.m)
 
-        return p_r >= self._min_detectable_power.w
+        return p_r
     
 
     def __received_power(self, p_t: float, g_t: float, g_r: float, d: float):

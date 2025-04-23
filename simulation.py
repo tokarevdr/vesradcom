@@ -66,6 +66,10 @@ class Simulation:
 
     def antenna(self) -> Antenna:
         return self.__antenna
+    
+
+    def set_vessel(self, vessel: Vessel):
+        self.__vessel = vessel
 
 
     def vessel(self) -> Vessel:

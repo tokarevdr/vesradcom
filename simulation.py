@@ -147,6 +147,12 @@ class Simulation:
 
         time = start_time
 
+        for sat in self.__satellites:
+            yet_another_sat = copy(sat)
+            yet_another_sat.at(start_time)
+            sat.subpoint_position_at_start = yet_another_sat.subpoint_position()
+            sat.coverage_area_at_start = yet_another_sat.coverage_area()
+
         while time < end_time:
             for sat_num in range(self.satellite_count()):
                 sat = copy(self.satellite_at(sat_num))

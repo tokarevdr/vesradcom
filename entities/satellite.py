@@ -24,6 +24,8 @@ class Satellite:
     __distance: Distance
     __power: Power
     __gain: float
+    subpoint_position_at_start: GeographicPosition
+    coverage_area_at_start: Polygon
 
     def __init__(self, tle: str, power: Power, gain: float):
         lines = tle.split('\n')
@@ -40,7 +42,9 @@ class Satellite:
         self.__distance = Distance(m=0)
         self.__power = power
         self.__gain = gain
-        
+        self.subpoint_position_at_start = wgs84.latlon(0, 0)
+        self.coverage_area_at_start = Polygon()
+    
 
     def at(self, time: datetime):
         t = self.__ts.from_datetime(time)
